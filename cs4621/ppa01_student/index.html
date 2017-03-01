@@ -458,16 +458,12 @@
 
         var vertexData = [
             -1.0, -1.0, 0.0,  // Lower left
-           // 0.0,  0.0,
             -1.0, -1.0,
             1.0, -1.0, 0.0,  // Lower right
-           // 1.0,  0.0,
             1.0, -1.0,
             1.0,  1.0, 0.0,  // Top right
-           // 1.0,  1.0,
             -1.0, 1.0,
             -1.0,  1.0, 0.0,  // Top left
-//            0.0,  1.0
             1.0, 1.0
         ];
         var vertexArray = new Float32Array(vertexData);
@@ -513,6 +509,8 @@
     }
 
     runCanvas("webglCanvas", "vertexShader", "fragmentShader00", function(gl, program) {
+        setSceneGui(scenes.triangle);
+
         var eye = getCameraEye();
         var target = getCameraTarget();
         var up = getCameraUp();
@@ -524,12 +522,15 @@
         gl.uniform1f(gl.getUniformLocation(program, "fov"), fov);
 
         // GET SCENE (ESTHER -> LOOK AT HERE)
-        var scenes = createScenes();
         var pos = scenes.triangle.vertexPositions;
         var color = scenes.triangle.triangleColors;
+        var bgdColor = getBackgroundColor();
+        var numTriangle = scenes.triangle.numTriangles;
 
         gl.uniform3fv(gl.getUniformLocation(program, "vertPosition"), pos);
         gl.uniform3fv(gl.getUniformLocation(program, "vertColor"), color);
+        gl.uniform1i(gl.getUniformLocation(program, "numTriangle"), numTriangle);
+        gl.uniform3f(gl.getUniformLocation(program, "bgdColor"), bgdColor[0], bgdColor[1], bgdColor[2]);
     });
 </script>
 
