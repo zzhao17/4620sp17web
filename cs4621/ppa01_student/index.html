@@ -153,6 +153,106 @@
 <script src="js/jquery-ui.min.js"></script>
 <script src="scenes.js"></script>
 
+<script id="vertexShader" type="x-shader/x-vertex">
+    attribute vec3 vert_position;
+    attribute vec2 vert_texCoord;
+
+    varying vec2 geom_texCoord;
+
+    void main() {
+        gl_Position = vec4(vert_position, 1.0);
+        geom_texCoord = vert_texCoord;
+    }
+</script>
+
+<script id="fragmentShader00" type="x-shader/x-fragment">
+    precision highp float;
+    #define PI  3.1415926535897932384626433832795
+    #define MAX_TRIANGLE 132
+
+    varying vec2 geom_texCoord;
+
+    uniform vec3 eye;
+    uniform vec3 target;
+    uniform float fov;
+    uniform vec3 up;
+
+    uniform vec3 vertPosition[MAX_TRIANGLE * 3];
+    uniform vec3 vertColor[MAX_TRIANGLE];
+
+    uniform int numTriangle;
+    uniform vec3 bgdColor;
+
+    vec3 getDir(){
+        vec3 z = normalize(eye - target);
+        vec3 x = normalize(cross(up, z));
+        vec3 y = normalize(cross(z, x));
+
+        float s = tan(PI * fov/360.0);
+
+        float sx = s * geom_texCoord.x;
+        float sy = s * geom_texCoord.y;
+
+        z = vec3(-z.x, -z.y, -z.z);
+        x = vec3(x.x * sx, x.y * sx, x.z * sx);
+        y = vec3(y.x * sy, y.y * sy, y.z * sy);
+
+        vec3 d = normalize(z + y + x);
+        return d;
+    }
+
+    float getT(vec3 v1, vec3 v2, vec3 v3){
+        vec3 n = normalize(cross(v1 - v2, v3 - v2));
+        float num = dot(v2 - eye, n);
+        float den = dot(normalize(getDir()), n);
+        float t = num / den;
+        return t;
+    }
+
+    vec3 intersection(vec3 v1, vec3 v2, vec3 v3){
+        float t = getT(v1, v2, v3);
+        vec3 dir = normalize(getDir());
+        vec3 td = vec3(dir.x * t, dir.y * t, dir.z * t);
+        vec3 intersection = eye + td;
+        return intersection;
+    }
+
+    bool ifIntersected(vec3 v1, vec3 v2, vec3 v3, vec3 p, out vec3 bary){
+        float faceArea = length(cross(v1 - v2, v3 - v2));
+
+        float au = length(cross(v1 - p, v2 - p));
+        float aw = length(cross(v1 - p, v3 - p));
+        float av = length(cross(v2 - p, v3 - p));
+
+        if (au + aw + av != faceArea) return false;
+        else {
+            bary.x = au / faceArea;
+            bary.y = aw / faceArea;
+            bary.z = av / faceArea;
+
+            return true;
+        }
+    }
+
+    void main() {
+        for (int i=0; i<MAX_TRIANGLE; i++){
+            if (i >= numTriangle) break;
+            else {
+                vec3 p = intersection(vertPosition[3*i], vertPosition[3*i + 1], vertPosition[3*i + 2]);
+                vec3 bary = vec3(0,0,0);
+                bool flag = ifIntersected(vertPosition[3*i], vertPosition[3*i + 1], vertPosition[3*i + 2], p, bary);
+                if (flag) {
+                    gl_FragColor = vec4(vertColor[i], 1.0);
+                }
+                else{
+                    gl_FragColor = vec4(bgdColor, 1.0);
+                }
+            }
+        }
+    }
+</script>
+
+
 <script>
     function initGui() {
         ["cameraEye", "cameraTarget", "cameraUp"].forEach(function (name) {
@@ -295,6 +395,142 @@
     //
     // TODO: Fill you code here and elsewhere in the HTML.
     //
+    function initializeWebGL(canvasName) {
+        var canvas = $("#" + canvasName);
+        // Getting WebGL context the right way
+        var gl = null;
+        try {
+            gl = canvas[0].getContext("experimental-webgl");
+            if (!gl) {
+                gl = canvas[0].getContext("webgl");
+            }
+        } catch (error) {
+            // NO-OP
+        }
+        if (!gl) {
+            alert("Could not get WebGL context!");
+            throw new Error("Could not get WebGL context!");
+        }
+        return gl;
+    }
+
+    function createShader(gl, shaderScriptId) {
+        var shaderScript = $("#" + shaderScriptId);
+        var shaderSource = shaderScript[0].text;
+        var shaderType = null;
+        if (shaderScript[0].type == "x-shader/x-vertex") {
+            shaderType = gl.VERTEX_SHADER;
+        } else if (shaderScript[0].type == "x-shader/x-fragment") {
+            shaderType = gl.FRAGMENT_SHADER;
+        } else {
+            throw new Error("Invalid shader type: " + shaderScript[0].type)
+        }
+        var shader = gl.createShader(shaderType);
+        gl.shaderSource(shader, shaderSource);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            var infoLog = gl.getShaderInfoLog(shader);
+            gl.deleteShader(shader);
+            throw new Error("An error occurred compiling the shader: " + infoLog);
+        } else {
+            return shader;
+        }
+    }
+
+    function createGlslProgram(gl, vertexShaderId, fragmentShaderId) {
+        var program = gl.createProgram();
+        gl.attachShader(program, createShader(gl, vertexShaderId));
+        gl.attachShader(program, createShader(gl, fragmentShaderId));
+        gl.linkProgram(program);
+        gl.validateProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            var infoLog = gl.getProgramInfoLog(program);
+            gl.deleteProgram(program);
+            throw new Error("An error occurred linking the program: " + infoLog);
+        } else {
+            return program;
+        }
+    }
+
+    function runCanvas(canvasName, vertexShaderName, fragmentShaderName, prepareProgram) {
+        var gl = initializeWebGL(canvasName);
+        var program = createGlslProgram(gl, vertexShaderName, fragmentShaderName);
+
+        var vertexData = [
+            -1.0, -1.0, 0.0,  // Lower left
+           // 0.0,  0.0,
+            -1.0, -1.0,
+            1.0, -1.0, 0.0,  // Lower right
+           // 1.0,  0.0,
+            1.0, -1.0,
+            1.0,  1.0, 0.0,  // Top right
+           // 1.0,  1.0,
+            -1.0, 1.0,
+            -1.0,  1.0, 0.0,  // Top left
+//            0.0,  1.0
+            1.0, 1.0
+        ];
+        var vertexArray = new Float32Array(vertexData);
+        var vertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        var indexData = [0, 1, 2, 0, 2, 3];
+        var indexArray = new Uint16Array(indexData);
+        var indexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexArray, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+        function updateWebGL() {
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.useProgram(program);
+
+            prepareProgram(gl, program);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            var vertPositionLocation = gl.getAttribLocation(program, "vert_position");
+            gl.enableVertexAttribArray(vertPositionLocation);
+            gl.vertexAttribPointer(vertPositionLocation, 3, gl.FLOAT, false, 4*5, 0);
+            var vertTextureLocation = gl.getAttribLocation(program, "vert_texCoord");
+            gl.enableVertexAttribArray(vertTextureLocation);
+            gl.vertexAttribPointer(vertTextureLocation, 2, gl.FLOAT, false, 4*5, 4*3);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+            gl.useProgram(null);
+
+            window.requestAnimationFrame(updateWebGL);
+        }
+
+        window.requestAnimationFrame(updateWebGL);
+    }
+
+    runCanvas("webglCanvas", "vertexShader", "fragmentShader00", function(gl, program) {
+        var eye = getCameraEye();
+        var target = getCameraTarget();
+        var up = getCameraUp();
+        var fov = getCameraFov();
+
+        gl.uniform3f(gl.getUniformLocation(program, "eye"), eye[0], eye[1], eye[2]);
+        gl.uniform3f(gl.getUniformLocation(program, "target"), target[0], target[1], target[2]);
+        gl.uniform3f(gl.getUniformLocation(program, "up"), up[0], up[1], up[2]);
+        gl.uniform1f(gl.getUniformLocation(program, "fov"), fov);
+
+        // GET SCENE
+        var scenes = createScenes();
+        var pos = scenes.triangle.vertexPositions;
+        var color = scenes.triangle.triangleColors;
+
+        gl.uniform3fv(gl.getUniformLocation(program, "vertPosition"), pos);
+        gl.uniform3fv(gl.getUniformLocation(program, "vertColor"), color);
+    });
 </script>
 
 </body>
