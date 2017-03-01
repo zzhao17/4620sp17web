@@ -172,6 +172,7 @@
 
     varying vec2 geom_texCoord;
 
+    uniform int renderMode;
     uniform vec3 eye;
     uniform vec3 target;
     uniform float fov;
@@ -229,7 +230,7 @@
         float aw = length(cross(v1 - p, v3 - p));
         float av = length(cross(v2 - p, v3 - p));
 
-        if (au + aw + av != faceArea) return false;
+        if (abs(au + aw + av - faceArea) > 0.00001)  return false;
         else {
             bary.x = au / faceArea;
             bary.y = aw / faceArea;
