@@ -183,6 +183,7 @@
     uniform int numTriangle;
     uniform vec3 bgdColor;
 
+    // GET RAY DIRECTION
     vec3 getDir(){
         vec3 z = normalize(eye - target);
         vec3 x = normalize(cross(up, z));
@@ -201,22 +202,26 @@
         return d;
     }
 
+    // GET THE T VALUE (eye + t * d)
     float getT(vec3 v1, vec3 v2, vec3 v3){
         vec3 n = normalize(cross(v1 - v2, v3 - v2));
         float num = dot(v2 - eye, n);
-        float den = dot(normalize(getDir()), n);
+        float den = dot(getDir(), n);
         float t = num / den;
         return t;
     }
 
+    // GET THE INTERSECTION POINT
     vec3 intersection(vec3 v1, vec3 v2, vec3 v3){
         float t = getT(v1, v2, v3);
-        vec3 dir = normalize(getDir());
+        vec3 dir = getDir();
         vec3 td = vec3(dir.x * t, dir.y * t, dir.z * t);
         vec3 intersection = eye + td;
         return intersection;
     }
 
+    // CHECK IF THE INTERSECTION POINT IS IN THE TRIANGLE (IF YES, GENERATE BARYSENTRIC
+    // COORDS THEN RETURN TRUE, IF NOT JUST RETURN FALSE)
     bool ifIntersected(vec3 v1, vec3 v2, vec3 v3, vec3 p, out vec3 bary){
         float faceArea = length(cross(v1 - v2, v3 - v2));
 
@@ -462,9 +467,9 @@
             1.0, -1.0, 0.0,  // Lower right
             1.0, -1.0,
             1.0,  1.0, 0.0,  // Top right
-            -1.0, 1.0,
+            1.0, 1.0,
             -1.0,  1.0, 0.0,  // Top left
-            1.0, 1.0
+           -1.0, 1.0,
         ];
         var vertexArray = new Float32Array(vertexData);
         var vertexBuffer = gl.createBuffer();
