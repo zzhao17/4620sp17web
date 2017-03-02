@@ -227,7 +227,8 @@
         return true;
     }
 
-    vec3 minT(vec3 v1, vec3 v2, vec3 v3, vec3 color) {
+    vec4 minT(vec3 v1, vec3 v2, vec3 v3, vec3 color, int currPos) {
+        vec4 colorT = vec4(color, currPos);
         float mint = getT(v1, v2, v3);
         vec3 origin = intersection(v1, v2, v3);
         vec3 b = vec3(0,0,0);
@@ -247,27 +248,74 @@
                     if (t < mint) {
                         mint = t;
                         color = vertColor[i];
+                        colorT = vec4(color, i);
                     }
                 }
             }
         }
 
-        return color;
+        return colorT;
+    }
+
+    vec3 computeNormal(float pos){
+        vec3 result;
+        for (int i=0; i < MAX_TRIANGLE; i++){
+            float temp_i = float(i);
+            if (abs(temp_i - pos) < 0.01){
+                vec3 a1 = vertPosition[3 * i];
+                vec3 a2 = vertPosition[3 * i + 1];
+                vec3 a3 = vertPosition[3 * i + 2];
+
+                result = cross(a1 - a2, a3 - a2);
+                result = abs(normalize(result));
+                break;
+            }
+        }
+        return result;
     }
 
     void main() {
         gl_FragColor = vec4(bgdColor, 1.0);
-        for (int i=0; i<MAX_TRIANGLE; i++) {
-            if (i >= numTriangle)
-                break;
-            vec3 a1 = vertPosition[3 * i];
-            vec3 a2 = vertPosition[3 * i + 1];
-            vec3 a3 = vertPosition[3 * i + 2];
-            vec3 p = intersection(a1, a2, a3);
-            vec3 c = vertColor[i];
-            vec3 bary = vec3(0,0,0);
-            if(ifIntersected(a1, a2, a3, p, bary))
-                gl_FragColor = vec4(minT(a1, a2, a3, c), 1.0);
+
+        if (renderMode == 1){ // FACE COLOR
+            for (int i=0; i<MAX_TRIANGLE; i++) {
+                if (i >= numTriangle)
+                    break;
+                vec3 a1 = vertPosition[3 * i];
+                vec3 a2 = vertPosition[3 * i + 1];
+                vec3 a3 = vertPosition[3 * i + 2];
+                vec3 p = intersection(a1, a2, a3);
+                vec3 c = vertColor[i];
+                vec3 bary = vec3(0,0,0);
+                vec4 colorPos;
+                if(ifIntersected(a1, a2, a3, p, bary)){
+                    colorPos = minT(a1, a2, a3, c, i);
+                    gl_FragColor = vec4(colorPos.x, colorPos.y, colorPos.z, 1.0);
+                }
+            }
+        }
+        else if (renderMode == 2){ // NORMAL
+            for (int i=0; i<MAX_TRIANGLE; i++) {
+                if (i >= numTriangle)
+                    break;
+                vec3 a1 = vertPosition[3 * i];
+                vec3 a2 = vertPosition[3 * i + 1];
+                vec3 a3 = vertPosition[3 * i + 2];
+                vec3 p = intersection(a1, a2, a3);
+                vec3 c = vertColor[i];
+                vec3 bary = vec3(0,0,0);
+
+                vec4 colorPos;
+                vec3 normal;
+
+                if(ifIntersected(a1, a2, a3, p, bary)){
+                    colorPos = minT(a1, a2, a3, c, i);
+                    normal = computeNormal(colorPos.w);
+                    normal = normal + vec3(1.0, 1.0, 1.0);
+                    normal = vec3(normal.x*0.5, normal.y*0.5, normal.z*0.5);
+                    gl_FragColor = vec4(normal.x, normal.y, normal.z, 1.0);
+                }
+            }
         }
     }
 </script>
