@@ -21,6 +21,7 @@
     <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 </head>
+
 <body>
 <div class="container">
     <h1>CS 4621 PPA1 <span class="subtitle">WebGL Ray</span></h1>
@@ -156,9 +157,7 @@
 <script id="vertexShader" type="x-shader/x-vertex">
     attribute vec3 vert_position;
     attribute vec2 vert_texCoord;
-
     varying vec2 geom_texCoord;
-
     void main() {
         gl_Position = vec4(vert_position, 1.0);
         geom_texCoord = vert_texCoord;
@@ -168,44 +167,35 @@
 <script id="fragmentShader00" type="x-shader/x-fragment">
     precision highp float;
     #define PI  3.1415926535897932384626433832795
-    #define MAX_TRIANGLE 132
-
+    #define MAX_TRIANGLE 100
     varying vec2 geom_texCoord;
-
     uniform int renderMode;
     uniform vec3 eye;
     uniform vec3 target;
     uniform float fov;
     uniform vec3 up;
-
     uniform vec3 vertPosition[MAX_TRIANGLE * 3];
     uniform vec3 vertColor[MAX_TRIANGLE];
-
     uniform int numTriangle;
     uniform vec3 bgdColor;
 
-
     // GET RAY DIRECTION
-    vec3 getDir(){
+    vec3 getDir() {
         vec3 z = normalize(eye - target);
         vec3 x = normalize(cross(up, z));
         vec3 y = normalize(cross(z, x));
-
         float s = tan(PI * fov/360.0);
-
         float sx = s * geom_texCoord.x;
         float sy = s * geom_texCoord.y;
-
         z = vec3(-z.x, -z.y, -z.z);
         x = vec3(x.x * sx, x.y * sx, x.z * sx);
         y = vec3(y.x * sy, y.y * sy, y.z * sy);
-
         vec3 d = normalize(z + y + x);
         return d;
     }
 
     // GET THE T VALUE (eye + t * d)
-    float getT(vec3 v1, vec3 v2, vec3 v3){
+    float getT(vec3 v1, vec3 v2, vec3 v3) {
         vec3 n = normalize(cross(v1 - v2, v3 - v2));
         float num = dot(v2 - eye, n);
         float den = dot(getDir(), n);
@@ -214,7 +204,7 @@
     }
 
     // GET THE INTERSECTION POINT
-    vec3 intersection(vec3 v1, vec3 v2, vec3 v3){
+    vec3 intersection(vec3 v1, vec3 v2, vec3 v3) {
         float t = getT(v1, v2, v3);
         vec3 dir = getDir();
         vec3 td = vec3(dir.x * t, dir.y * t, dir.z * t);
@@ -222,32 +212,27 @@
         return intersection;
     }
 
-    // CHECK IF THE INTERSECTION POINT IS IN THE TRIANGLE (IF YES, GENERATE BARYSENTRIC
+    // CHECK IF THE INTERSECTION POINT IS IN THE TRIANGLE (IF YES, GENERATE BARYCENTRIC
     // COORDS THEN RETURN TRUE, IF NOT JUST RETURN FALSE)
-    bool ifIntersected(vec3 v1, vec3 v2, vec3 v3, vec3 p, out vec3 bary){
+    bool ifIntersected(vec3 v1, vec3 v2, vec3 v3, vec3 p, out vec3 bary) {
         float faceArea = length(cross(v1 - v2, v3 - v2));
-
         float au = length(cross(v1 - p, v2 - p));
         float aw = length(cross(v1 - p, v3 - p));
         float av = length(cross(v2 - p, v3 - p));
+        if (abs(au + aw + av - faceArea) > 0.0001) return false;
 
-        if (abs(au + aw + av - faceArea) > 0.01)  return false;
-        else {
-            bary.x = au / faceArea;
-            bary.y = aw / faceArea;
-            bary.z = av / faceArea;
-
-            return true;
-        }
+        bary.x = au / faceArea;
+        bary.y = aw / faceArea;
+        bary.z = av / faceArea;
+        return true;
     }
 
-    void minT(vec3 v1, vec3 v2, vec3 v3, vec3 color){
+    vec3 minT(vec3 v1, vec3 v2, vec3 v3, vec3 color) {
         float mint = getT(v1, v2, v3);
         vec3 origin = intersection(v1, v2, v3);
         vec3 b = vec3(0,0,0);
         bool flag_2 = ifIntersected(v1, v2, v3, origin, b);
-
-        for (int i=0; i<MAX_TRIANGLE; i++){
+        for (int i=0; i<MAX_TRIANGLE; i++) {
             if (i >= numTriangle)
                 break;
             else {
@@ -255,11 +240,9 @@
                 vec3 a2 = vertPosition[3 * i + 1];
                 vec3 a3 = vertPosition[3 * i + 2];
                 vec3 p = intersection(a1, a2, a3);
-
                 vec3 bary = vec3(0, 0, 0);
                 bool flag_1 = ifIntersected(a1, a2, a3, p, bary);
-
-                if (flag_1 && flag_2){
+                if (flag_1 && flag_2) {
                     float t = getT(a1, a2, a3);
                     if (t < mint) {
                         mint = t;
@@ -268,31 +251,26 @@
                 }
             }
         }
+
+        return color;
     }
 
-
     void main() {
-        for (int i=0; i<MAX_TRIANGLE; i++){
+        gl_FragColor = vec4(bgdColor, 1.0);
+        for (int i=0; i<MAX_TRIANGLE; i++) {
             if (i >= numTriangle)
                 break;
-            else {
-                vec3 a1 = vertPosition[3 * i];
-                vec3 a2 = vertPosition[3 * i + 1];
-                vec3 a3 = vertPosition[3 * i + 2];
-
-                vec3 p = intersection(a1, a2, a3);
-                vec3 c = vertColor[i];
-                vec3 bary = vec3(0,0,0);
-                bool flag = ifIntersected(a1, a2, a3, p, bary);
-                if (flag) {
-                    minT(a1, a2, a3, c);
-                    gl_FragColor = vec4(c, 1.0);
-                }
-            }
+            vec3 a1 = vertPosition[3 * i];
+            vec3 a2 = vertPosition[3 * i + 1];
+            vec3 a3 = vertPosition[3 * i + 2];
+            vec3 p = intersection(a1, a2, a3);
+            vec3 c = vertColor[i];
+            vec3 bary = vec3(0,0,0);
+            if(ifIntersected(a1, a2, a3, p, bary))
+                gl_FragColor = vec4(minT(a1, a2, a3, c), 1.0);
         }
     }
 </script>
-
 
 <script>
     function initGui() {
@@ -334,53 +312,41 @@
         });
     }
     initGui();
-
     var renderModes = {
         "FACE_COLOR": 1,
         "NORMAL": 2,
         "SHADOW": 3,
         "FULL": 4
     };
-
     var scenes = createScenes();
-
     function setSceneGui(scene) {
         $("#cameraEyeX").spinner("value", scene.initialCamera.eye[0]);
         $("#cameraEyeY").spinner("value", scene.initialCamera.eye[1]);
         $("#cameraEyeZ").spinner("value", scene.initialCamera.eye[2]);
-
         $("#cameraTargetX").spinner("value", scene.initialCamera.target[0]);
         $("#cameraTargetY").spinner("value", scene.initialCamera.target[1]);
         $("#cameraTargetZ").spinner("value", scene.initialCamera.target[2]);
-
         $("#cameraUpX").spinner("value", scene.initialCamera.up[0]);
         $("#cameraUpY").spinner("value", scene.initialCamera.up[1]);
         $("#cameraUpZ").spinner("value", scene.initialCamera.up[2]);
-
         $("#cameraFov").spinner("value", scene.initialCamera.fov);
-
         $("#lightPositionX").spinner('value', scene.initialLight.position[0]);
         $("#lightPositionY").spinner('value', scene.initialLight.position[1]);
         $("#lightPositionZ").spinner('value', scene.initialLight.position[2]);
-
         $("#lightIntensityR").spinner('value', scene.initialLight.intensity[0]);
         $("#lightIntensityG").spinner('value', scene.initialLight.intensity[1]);
         $("#lightIntensityB").spinner('value', scene.initialLight.intensity[2]);
     }
-
     function getScene() {
         return scenes[$("#scene").val()];
     }
-
     $("#scene").change(function () {
         setSceneGui(getScene());
     });
     setSceneGui(getScene());
-
     function getRenderMode() {
         return renderModes[$("#renderMode").val()];
     }
-
     function getBackgroundColor() {
         return [
             $("#backgroundColorR").spinner("value"),
@@ -388,7 +354,6 @@
             $("#backgroundColorB").spinner("value")
         ];
     }
-
     function getCameraEye() {
         return [
             $("#cameraEyeX").spinner("value"),
@@ -396,7 +361,6 @@
             $("#cameraEyeZ").spinner("value")
         ]
     }
-
     function getCameraTarget() {
         return [
             $("#cameraTargetX").spinner("value"),
@@ -404,7 +368,6 @@
             $("#cameraTargetZ").spinner("value")
         ];
     }
-
     function getCameraUp() {
         return [
             $("#cameraUpX").spinner("value"),
@@ -412,11 +375,9 @@
             $("#cameraUpZ").spinner("value")
         ];
     }
-
     function getCameraFov() {
         return $("#cameraFov").spinner("value")
     }
-
     function getLightPosition() {
         return [
             $("#lightPositionX").spinner("value"),
@@ -424,7 +385,6 @@
             $("#lightPositionZ").spinner("value")
         ];
     }
-
     function getLightIntensity() {
         return [
             $("#lightIntensityR").spinner("value"),
@@ -432,10 +392,9 @@
             $("#lightIntensityB").spinner("value")
         ];
     }
+</script>
 
-    //
-    // TODO: Fill you code here and elsewhere in the HTML.
-    //
+<script>
     function initializeWebGL(canvasName) {
         var canvas = $("#" + canvasName);
         // Getting WebGL context the right way
@@ -496,7 +455,6 @@
     function runCanvas(canvasName, vertexShaderName, fragmentShaderName, prepareProgram) {
         var gl = initializeWebGL(canvasName);
         var program = createGlslProgram(gl, vertexShaderName, fragmentShaderName);
-
         var vertexData = [
             -1.0, -1.0, 0.0,  // Lower left
             -1.0, -1.0,
@@ -505,14 +463,13 @@
             1.0,  1.0, 0.0,  // Top right
             1.0, 1.0,
             -1.0,  1.0, 0.0,  // Top left
-           -1.0, 1.0,
+            -1.0, 1.0,
         ];
         var vertexArray = new Float32Array(vertexData);
         var vertexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
         var indexData = [0, 1, 2, 0, 2, 3];
         var indexArray = new Uint16Array(indexData);
         var indexBuffer = gl.createBuffer();
@@ -523,11 +480,8 @@
         function updateWebGL() {
             gl.clearColor(0.0, 0.0, 0.0, 0.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
-
             gl.useProgram(program);
-
             prepareProgram(gl, program);
-
             gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
             var vertPositionLocation = gl.getAttribLocation(program, "vert_position");
             gl.enableVertexAttribArray(vertPositionLocation);
@@ -536,13 +490,10 @@
             gl.enableVertexAttribArray(vertTextureLocation);
             gl.vertexAttribPointer(vertTextureLocation, 2, gl.FLOAT, false, 4*5, 4*3);
             gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
             gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-
             gl.useProgram(null);
-
             window.requestAnimationFrame(updateWebGL);
         }
 
@@ -551,26 +502,19 @@
 
     runCanvas("webglCanvas", "vertexShader", "fragmentShader00", function(gl, program) {
         var scene = getScene();
-
         var eye = getCameraEye();
         var target = getCameraTarget();
         var up = getCameraUp();
         var fov = getCameraFov();
-
         gl.uniform3f(gl.getUniformLocation(program, "eye"), eye[0], eye[1], eye[2]);
         gl.uniform3f(gl.getUniformLocation(program, "target"), target[0], target[1], target[2]);
         gl.uniform3f(gl.getUniformLocation(program, "up"), up[0], up[1], up[2]);
         gl.uniform1f(gl.getUniformLocation(program, "fov"), fov);
-
-        // GET SCENE
         var renderMode = getRenderMode();
-
         var pos = scene.vertexPositions;
         var color = scene.triangleColors;
         var numTriangle = scene.numTriangles;
-
         var bgdColor = getBackgroundColor();
-
         gl.uniform3fv(gl.getUniformLocation(program, "vertPosition"), pos);
         gl.uniform3fv(gl.getUniformLocation(program, "vertColor"), color);
         gl.uniform1i(gl.getUniformLocation(program, "numTriangle"), numTriangle);
@@ -578,6 +522,5 @@
         gl.uniform1i(gl.getUniformLocation(program, "renderMode"), renderMode);
     });
 </script>
-
 </body>
 </html>
