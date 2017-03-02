@@ -184,6 +184,7 @@
     uniform int numTriangle;
     uniform vec3 bgdColor;
 
+
     // GET RAY DIRECTION
     vec3 getDir(){
         vec3 z = normalize(eye - target);
@@ -230,7 +231,7 @@
         float aw = length(cross(v1 - p, v3 - p));
         float av = length(cross(v2 - p, v3 - p));
 
-        if (abs(au + aw + av - faceArea) > 0.00001)  return false;
+        if (abs(au + aw + av - faceArea) > 0.01)  return false;
         else {
             bary.x = au / faceArea;
             bary.y = aw / faceArea;
@@ -240,18 +241,52 @@
         }
     }
 
+    void minT(vec3 v1, vec3 v2, vec3 v3, vec3 color){
+        float mint = getT(v1, v2, v3);
+        vec3 origin = intersection(v1, v2, v3);
+        vec3 b = vec3(0,0,0);
+        bool flag_2 = ifIntersected(v1, v2, v3, origin, b);
+
+        for (int i=0; i<MAX_TRIANGLE; i++){
+            if (i >= numTriangle)
+                break;
+            else {
+                vec3 a1 = vertPosition[3 * i];
+                vec3 a2 = vertPosition[3 * i + 1];
+                vec3 a3 = vertPosition[3 * i + 2];
+                vec3 p = intersection(a1, a2, a3);
+
+                vec3 bary = vec3(0, 0, 0);
+                bool flag_1 = ifIntersected(a1, a2, a3, p, bary);
+
+                if (flag_1 && flag_2){
+                    float t = getT(a1, a2, a3);
+                    if (t < mint) {
+                        mint = t;
+                        color = vertColor[i];
+                    }
+                }
+            }
+        }
+    }
+
+
     void main() {
         for (int i=0; i<MAX_TRIANGLE; i++){
-            if (i >= numTriangle) break;
+            if (i >= numTriangle)
+                break;
             else {
-                vec3 p = intersection(vertPosition[3*i], vertPosition[3*i + 1], vertPosition[3*i + 2]);
+                vec3 a1 = vertPosition[3 * i];
+                vec3 a2 = vertPosition[3 * i + 1];
+                vec3 a3 = vertPosition[3 * i + 2];
+
+                vec3 p = intersection(a1, a2, a3);
+                vec3 c = vertColor[i];
                 vec3 bary = vec3(0,0,0);
-                bool flag = ifIntersected(vertPosition[3*i], vertPosition[3*i + 1], vertPosition[3*i + 2], p, bary);
+                bool flag = ifIntersected(a1, a2, a3, p, bary);
                 if (flag) {
-                    gl_FragColor = vec4(vertColor[i], 1.0);
-                }
-                else{
-                    gl_FragColor = vec4(bgdColor, 1.0);
+                    minT(a1, a2, a3, c);
+                    gl_FragColor = vec4(c, 1.0);
                 }
             }
         }
@@ -515,7 +550,7 @@
     }
 
     runCanvas("webglCanvas", "vertexShader", "fragmentShader00", function(gl, program) {
-        setSceneGui(scenes.triangle);
+        var scene = getScene();
 
         var eye = getCameraEye();
         var target = getCameraTarget();
@@ -527,16 +562,20 @@
         gl.uniform3f(gl.getUniformLocation(program, "up"), up[0], up[1], up[2]);
         gl.uniform1f(gl.getUniformLocation(program, "fov"), fov);
 
-        // GET SCENE (ESTHER -> LOOK AT HERE)
-        var pos = scenes.triangle.vertexPositions;
-        var color = scenes.triangle.triangleColors;
+        // GET SCENE
+        var renderMode = getRenderMode();
+
+        var pos = scene.vertexPositions;
+        var color = scene.triangleColors;
+        var numTriangle = scene.numTriangles;
+
         var bgdColor = getBackgroundColor();
-        var numTriangle = scenes.triangle.numTriangles;
 
         gl.uniform3fv(gl.getUniformLocation(program, "vertPosition"), pos);
         gl.uniform3fv(gl.getUniformLocation(program, "vertColor"), color);
         gl.uniform1i(gl.getUniformLocation(program, "numTriangle"), numTriangle);
         gl.uniform3f(gl.getUniformLocation(program, "bgdColor"), bgdColor[0], bgdColor[1], bgdColor[2]);
+        gl.uniform1i(gl.getUniformLocation(program, "renderMode"), renderMode);
     });
 </script>
 
